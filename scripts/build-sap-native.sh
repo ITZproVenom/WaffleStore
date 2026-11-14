@@ -47,7 +47,7 @@ cp "$ROOT/MapleSyrup/NativeSAP/packageipa/"*.go "$SOURCE/wafflebridge/packageipa
 python3 - "$SOURCE" <<'PY'
 import pathlib,sys
 root=pathlib.Path(sys.argv[1])
-for name in ['assets.go','storeagent.go']:
+for name in ['assets.go']:
     path=root/'internal/sap/assets'/name
     source=path.read_text()
     old='root, err := os.UserCacheDir()\n\tif err != nil {'

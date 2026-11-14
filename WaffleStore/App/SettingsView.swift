@@ -203,6 +203,7 @@ struct SettingsView: View {
                     LinkCreditCell(image: Image("skadz"), name: "skadz", description: "Original creator of PancakeStore.".localized, url: "https://github.com/skadz108")
                     LinkCreditCell(image: Image("Majd"), name: "Majd Alfhaily", description: "backend fix via ipatool", url: "https://github.com/majd/ipatool")
                     LinkCreditCell(image: Image("zhlynn"), name: "zhlynn", description: "Zsign signing backend", url: "https://github.com/zhlynn/zsign")
+                    LinkCreditCell(image: Image(systemName: "person.crop.circle.fill"), name: "ITZproVenom", description: "Modern store engine, arm64 guest and build fixes.", url: "https://github.com/ITZproVenom")
                 }
             }
             .navigationTitle("Settings".localized)

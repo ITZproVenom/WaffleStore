@@ -27,19 +27,18 @@ mkdir -p "$GOPATH" "$GOMODCACHE" "$GOCACHE"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 # Reuse the current SAP guest, loader and shims only, with an isolated C ABI.
-# Pinned to ipatool v2.8.1: it carries the Apple October 2026 store fixes,
-# the arm64 StoreAgent emulation and the account-bound kbsync path that the
-# store now requires for every download.
+# Pinned to the ipatool revision that WaffleStore 2.3 used, so the guest runs
+# without a JIT translation buffer and needs no special entitlement.
 # All downloaded source and generated modifications are retained for review.
-curl -fL --retry 3 https://github.com/majd/ipatool/archive/b352566155a667d8aaeabaa7ecec4966080f92ab.tar.gz -o "$WORK/ipatool.tar.gz"
+curl -fL --retry 3 https://github.com/majd/ipatool/archive/3411d57f451f5111ae115641c22f7ed17bbd5fbe.tar.gz -o "$WORK/ipatool.tar.gz"
 python3 - "$WORK/ipatool.tar.gz" <<'PY'
 import sys,hashlib
 with open(sys.argv[1], 'rb') as f: digest=hashlib.sha256(f.read()).hexdigest()
-if digest != 'fc13fe52232e96801f8994defd305d744a2f7c526c6dfb05d9b4c39cbe6867dc':
+if digest != '5c940788df3b619b07ead5e592b5a06beecd96ccdb7570f4fbd09a02b41785b7':
     raise SystemExit('ipatool source integrity mismatch')
 PY
 tar -xzf "$WORK/ipatool.tar.gz" -C "$WORK"
-SOURCE="$WORK/ipatool-b352566155a667d8aaeabaa7ecec4966080f92ab"
+SOURCE="$WORK/ipatool-3411d57f451f5111ae115641c22f7ed17bbd5fbe"
 mkdir -p "$SOURCE/wafflebridge"
 cp "$ROOT/MapleSyrup/NativeSAP/main.go" "$SOURCE/wafflebridge/main.go"
 mkdir -p "$SOURCE/wafflebridge/packageipa"
@@ -47,8 +46,10 @@ cp "$ROOT/MapleSyrup/NativeSAP/packageipa/"*.go "$SOURCE/wafflebridge/packageipa
 python3 - "$SOURCE" <<'PY'
 import pathlib,sys
 root=pathlib.Path(sys.argv[1])
-for name in ['assets.go']:
-    path=root/'internal/sap/assets'/name
+assets_dir=root/'internal/sap/assets'
+# A sandboxed app must keep every Apple asset inside its own container.
+for name in ['assets.go','storeagent.go']:
+    path=assets_dir/name
     source=path.read_text()
     old='root, err := os.UserCacheDir()\n\tif err != nil {'
     if source.count(old)!=1: raise SystemExit('Unexpected SAP cache layout')
@@ -57,6 +58,93 @@ for name in ['assets.go']:
     # os is still used for actual cache I/O, so the existing import stays.
     if name=='assets.go': source += '\n// Configured once by the sandboxed C bridge before any asset load.\nvar CacheRoot string\n'
     path.write_text(source)
+
+# The StoreAgent image lives in the same Apple package as the SAP bundle.
+# Fetching it separately re-streams the whole package and exceeded the
+# operation window on a mobile connection, so pull it out in one pass and
+# cache it next to the bundle.
+path=assets_dir/'assets.go'
+source=path.read_text()
+old='''\tfound, err := downloadFiles(ctx, requiredFiles, "download Apple SAP assets")
+\tif err != nil {
+\t\treturn Bundle{}, err
+\t}
+
+\tbundle := bundleFrom(found)'''
+new='''\tspecs := make([]fileSpec, 0, len(requiredFiles)+1)
+\tspecs = append(specs, requiredFiles...)
+\tspecs = append(specs, storeAgentSpec)
+\tfound, err := downloadFiles(ctx, specs, "download Apple SAP assets")
+\tif err != nil {
+\t\treturn Bundle{}, err
+\t}
+
+\tif agent, ok := found[storeAgentSpec.name]; ok {
+\t\tdelete(found, storeAgentSpec.name)
+\t\tif err := cacheStoreAgent(agent); err != nil {
+\t\t\treturn Bundle{}, err
+\t\t}
+\t}
+
+\tbundle := bundleFrom(found)'''
+if source.count(old)!=1: raise SystemExit('Unexpected SAP download layout')
+source=source.replace(old,new)
+# Ranged reads of the Apple package can take minutes on a mobile link.
+old_timeout='Timeout:   2 * time.Minute,'
+if source.count(old_timeout)!=1: raise SystemExit('Unexpected SAP client layout')
+source=source.replace(old_timeout,'Timeout:   30 * time.Minute,')
+path.write_text(source)
+
+path=assets_dir/'storeagent.go'
+source=path.read_text()
+old='''\tif err := VerifyStoreAgent(data); err != nil {
+\t\treturn nil, err
+\t}
+
+\tif err := os.MkdirAll(directory, 0o700); err != nil {
+\t\treturn nil, fmt.Errorf("create StoreAgent asset cache: %w", err)
+\t}
+
+\tif err := replaceFile(path, data); err != nil {
+\t\treturn nil, fmt.Errorf("cache Apple StoreAgent asset: %w", err)
+\t}
+
+\treturn data, nil
+}'''
+new='''\tif err := cacheStoreAgent(data); err != nil {
+\t\treturn nil, err
+\t}
+
+\treturn data, nil
+}
+
+// cacheStoreAgent verifies and stores the pinned StoreAgent image in the
+// sandbox cache so later kbsync requests never stream the package again.
+func cacheStoreAgent(data []byte) error {
+\tif err := VerifyStoreAgent(data); err != nil {
+\t\treturn err
+\t}
+
+\tdirectory, err := storeAgentDirectory()
+\tif err != nil {
+\t\treturn err
+\t}
+
+\tif err := os.MkdirAll(directory, 0o700); err != nil {
+\t\treturn fmt.Errorf("create StoreAgent asset cache: %w", err)
+\t}
+
+\tpath := filepath.Join(directory, storeAgentSpec.name)
+\tif err := replaceFile(path, data); err != nil {
+\t\treturn fmt.Errorf("cache Apple StoreAgent asset: %w", err)
+\t}
+
+\treturn nil
+}'''
+if source.count(old)!=1: raise SystemExit('Unexpected SAP StoreAgent layout')
+source=source.replace(old,new)
+path.write_text(source)
+print('patched SAP asset layout')
 PY
 SDK_NAME=${NATIVE_SDK_NAME:-iphoneos}
 SDK=$(xcrun --sdk "$SDK_NAME" --show-sdk-path)

@@ -43,6 +43,15 @@ func recordError(err error) {
 	lastError.text = err.Error()
 }
 
+// A fault inside the interpreted guest must not take the app down. Turn it
+// into a reported status instead.
+func recoverGuest(status *C.int) {
+	if recovered := recover(); recovered != nil {
+		recordError(fmt.Errorf("native guest panic: %v", recovered))
+		*status = 90
+	}
+}
+
 //export WaffleSAPLastError
 func WaffleSAPLastError() *C.char {
 	lastError.Lock()
@@ -71,7 +80,8 @@ var nextHandle uint64
 // 1 arguments; 2 assets; 3 emulator; 4 init; 5 exchange; 6 sign; 7 handle.
 //
 //export WaffleSAPOpen
-func WaffleSAPOpen(cache *C.char, hardware *C.uchar, length C.size_t, handle *C.uint64_t) C.int {
+func WaffleSAPOpen(cache *C.char, hardware *C.uchar, length C.size_t, handle *C.uint64_t) (result C.int) {
+	defer func() { recoverGuest(&result) }()
 	mutex.Lock()
 	defer mutex.Unlock()
 	if cache == nil || hardware == nil || length != 6 || handle == nil {
@@ -159,7 +169,8 @@ func WaffleSAPSign(handle C.uint64_t, input *C.uchar, length C.size_t, output **
 }
 
 //export WaffleSAPKBSync
-func WaffleSAPKBSync(cache *C.char, hardware *C.uchar, length C.size_t, dsid C.uint64_t, output **C.uchar, outputLength *C.size_t) C.int {
+func WaffleSAPKBSync(cache *C.char, hardware *C.uchar, length C.size_t, dsid C.uint64_t, output **C.uchar, outputLength *C.size_t) (result C.int) {
+	defer func() { recoverGuest(&result) }()
 	mutex.Lock()
 	defer mutex.Unlock()
 	if cache == nil || hardware == nil || length != 6 || dsid == 0 || output == nil || outputLength == nil {

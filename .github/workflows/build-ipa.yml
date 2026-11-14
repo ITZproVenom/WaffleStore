@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - fix/kbsync-modern-engine
+      - fix/legacy-nojit
 
 permissions:
   contents: write

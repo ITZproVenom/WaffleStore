@@ -90,7 +90,7 @@ else:
 for name,root in sorted(modules.items()):
     found=[]
     for path in sorted(root.iterdir()):
-        if path.is_file() and path.name.upper().startswith(('LICENSE','COPYING','NOTICE')):
+        if path.is_file() and path.name.upper().startswith(('LICENSE','LICENCE','UNLICENSE','COPYING','NOTICE')):
             found.append(path.name+'\n'+path.read_text(errors='replace'))
     if not found: raise SystemExit('Missing license notice for linked module: '+name)
     pieces.append(name+'\n'+'\n'.join(found))

@@ -31,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           LATEST=$(ls -d /Applications/Xcode*.app | python3 -c 'import sys,re; p=[x.strip() for x in sys.stdin if x.strip()]; key=lambda s:[int(t) if t.isdigit() else t for t in re.split(r"(\d+)",s)]; print(sorted(p,key=key)[-1])')
-          echo "DEVELOPER_DIR=${LATEST%.app}" >> "$GITHUB_ENV"
+          echo "DEVELOPER_DIR=${LATEST}/Contents/Developer" >> "$GITHUB_ENV"
           echo "Using $LATEST"
           xcodebuild -version
 

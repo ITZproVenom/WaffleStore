@@ -2,6 +2,12 @@ import Foundation
 import MapleSAP
 
 nonisolated final class NativeKBSyncGenerator: KBSyncGenerator {
+    // Failure detail from the native guest, for the app log only.
+    private static func lastError() -> String {
+        guard let text = WaffleSAPLastError() else { return "" }
+        defer { WaffleSAPFreeString(text) }
+        return String(cString: text)
+    }
     func generate(identity: MachineIdentity, dsid: UInt64) throws -> Data {
         let cache = try FileManager.default.url(for: .cachesDirectory, in: .userDomainMask,
             appropriateFor: nil, create: true).appendingPathComponent("MapleSAP", isDirectory: true)
@@ -16,8 +22,10 @@ nonisolated final class NativeKBSyncGenerator: KBSyncGenerator {
             }
         }
         defer { WaffleSAPFree(output, length) }
-        guard status == 0 else { throw StoreError.native(Int32(status)) }
-        guard let output = output, length > 0, length <= 16 << 20 else { throw StoreError.native(8) }
+        guard status == 0 else { throw StoreError.nativeDetail(Int32(status), NativeKBSyncGenerator.lastError()) }
+        guard let output = output, length > 0, length <= 16 << 20 else {
+            throw StoreError.nativeDetail(8, NativeKBSyncGenerator.lastError())
+        }
         return Data(bytes: output, count: length)
     }
 }

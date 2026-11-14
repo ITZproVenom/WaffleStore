@@ -6,6 +6,7 @@ public enum StoreError: Error, LocalizedError, Equatable {
     case retryLater
     case emptyRedownload
     case sessionExpired, licenseRequired, paidPurchase, http(Int), native(Int32), packageInvalid
+    case nativeDetail(Int32, String)
     case apple(String, String)
     public var errorDescription: String? {
         switch self {
@@ -21,11 +22,17 @@ public enum StoreError: Error, LocalizedError, Equatable {
         case .paidPurchase: return "Only verified free apps can be acquired automatically. Use the App Store for paid apps or subscriptions."
         case .http(let code): return "Store request failed (HTTP \(code))."
         case .native(let stage):
-            let reason: [Int32: String] = [2: "Apple asset loading", 8: "interpreted StoreAgent kbsync", 20: "package parameters", 21: "ZIP preparation", 22: "CDN range inspection", 31: "invalid ZIP or size/path limit", 32: "MD5 mismatch", 33: "IPA bundle/platform mismatch", 34: "metadata app/version mismatch", 35: "SINF data/path mismatch", 36: "ZIP checksum failure", 37: "sandbox storage access or space"]
-            return "Native Store operation failed (stage \(stage): \(reason[stage] ?? "unknown"))."
+            return "Native Store operation failed (stage \(stage): \(StoreError.nativeReason(stage)))."
+        case .nativeDetail(let stage, let detail):
+            let suffix = detail.isEmpty ? "" : " — \(detail)"
+            return "Native Store operation failed (stage \(stage): \(StoreError.nativeReason(stage))).\(suffix)"
         case .packageInvalid: return "IPA validation failed. No completed IPA was saved."
         case .apple(let code, let message): return "Apple Store \(code): \(message)"
         }
+    }
+    static func nativeReason(_ stage: Int32) -> String {
+        let reason: [Int32: String] = [2: "Apple asset loading", 8: "interpreted StoreAgent kbsync", 9: "operation window expired", 20: "package parameters", 21: "ZIP preparation", 22: "CDN range inspection", 31: "invalid ZIP or size/path limit", 32: "MD5 mismatch", 33: "IPA bundle/platform mismatch", 34: "metadata app/version mismatch", 35: "SINF data/path mismatch", 36: "ZIP checksum failure", 37: "sandbox storage access or space"]
+        return reason[stage] ?? "unknown"
     }
 }
 public struct StoreApp: Sendable, Equatable {

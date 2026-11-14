@@ -40,6 +40,9 @@ final class IPATool {
         do { return try await session().descriptor(app: app, externalVersionID: version) }
         catch {
             print("Apple Store failure: category=\(ResponseDiagnostic.category(error))")
+            if let detail = (error as? LocalizedError)?.errorDescription {
+                print("Apple Store failure detail: \(detail)")
+            }
             throw error
         }
     }

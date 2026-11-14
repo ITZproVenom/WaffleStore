@@ -12,6 +12,10 @@ void WaffleSAPFree(unsigned char *pointer, size_t length);
 
 int WaffleSAPKBSync(char *cache, unsigned char *hardware, size_t length, uint64_t dsid, unsigned char **output, size_t *outputLength);
 
+// Last failure detail of the native store guest, for diagnostics only.
+char *WaffleSAPLastError(void);
+void WaffleSAPFreeString(char *value);
+
 int WafflePrepareIPA(char *source, char *destination, unsigned char *input, size_t length, unsigned char **output, size_t *outputLength);
 
 int WaffleInspectIPA(char *url, char *bundle, unsigned char **output, size_t *outputLength);

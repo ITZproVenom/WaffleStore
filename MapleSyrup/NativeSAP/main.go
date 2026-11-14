@@ -11,6 +11,7 @@ import "C"
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/majd/ipatool/v2/internal/sap/assets"
 	"github.com/majd/ipatool/v2/internal/sap/machine"
 	"github.com/majd/ipatool/v2/wafflebridge/packageipa"
@@ -18,6 +19,43 @@ import (
 	"time"
 	"unsafe"
 )
+
+// Apple asset resolution and StoreAgent interpretation run inside one
+// operation. The asset pass reads Apple's restore image over ranged
+// requests, which needs far more than the old two minute ceiling on a
+// mobile connection.
+const operationTimeout = 20 * time.Minute
+
+// Last failure detail, exposed for diagnostics. It never carries tokens,
+// cookies, account identifiers or URLs.
+var lastError struct {
+	sync.Mutex
+	text string
+}
+
+func recordError(err error) {
+	lastError.Lock()
+	defer lastError.Unlock()
+	if err == nil {
+		lastError.text = ""
+		return
+	}
+	lastError.text = err.Error()
+}
+
+//export WaffleSAPLastError
+func WaffleSAPLastError() *C.char {
+	lastError.Lock()
+	defer lastError.Unlock()
+	return C.CString(lastError.text)
+}
+
+//export WaffleSAPFreeString
+func WaffleSAPFreeString(value *C.char) {
+	if value != nil {
+		C.free(unsafe.Pointer(value))
+	}
+}
 
 type guest struct {
 	machine  *machine.Machine
@@ -44,19 +82,22 @@ func WaffleSAPOpen(cache *C.char, hardware *C.uchar, length C.size_t, handle *C.
 		return 1
 	}
 	assets.CacheRoot = directory // Explicit app sandbox path; no home/system fallback.
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
 	defer cancel()
 	bundle, err := assets.Load(ctx)
 	if err != nil {
+		recordError(err)
 		return 2
 	}
 	m, err := machine.Open(ctx, bundle)
 	if err != nil {
+		recordError(err)
 		return 3
 	}
 	id := C.GoBytes(unsafe.Pointer(hardware), 6)
 	session, err := m.Initialize(id)
 	if err != nil {
+		recordError(err)
 		m.Close()
 		return 4
 	}
@@ -128,16 +169,24 @@ func WaffleSAPKBSync(cache *C.char, hardware *C.uchar, length C.size_t, dsid C.u
 	if assets.CacheRoot == "" {
 		return 1
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
 	defer cancel()
 	bundle, err := assets.Load(ctx)
 	if err != nil {
+		recordError(err)
 		return 2
 	}
 	data, err := machine.GenerateKBSync(ctx, bundle, C.GoBytes(unsafe.Pointer(hardware), 6), uint64(dsid))
 	if err != nil || len(data) == 0 || len(data) > 16<<20 {
+		recordError(err)
+		// 9 marks an expired operation window, which is a different failure
+		// from a rejected or empty kbsync blob.
+		if errors.Is(err, context.DeadlineExceeded) {
+			return 9
+		}
 		return 8
 	}
+	recordError(nil)
 	*output = (*C.uchar)(C.CBytes(data))
 	*outputLength = C.size_t(len(data))
 	return 0

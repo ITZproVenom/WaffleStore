@@ -21,10 +21,10 @@ case ${PLATFORM_NAME:-iphoneos} in
     exit 2
     ;;
 esac
-FINGERPRINT=$( { shasum -a 256 scripts/prepare-unicorn-tci.py scripts/build-unicorn-tci.sh scripts/build-sap-native.sh $(find MapleSyrup/NativeSAP -name "*.go" -type f | sort); printf '%s\n' "$NATIVE_PLATFORM"; xcrun --sdk "$NATIVE_SDK_NAME" --show-sdk-version; } | shasum -a 256 | cut -d ' ' -f 1)
+FINGERPRINT=$( { shasum -a 256 scripts/prepare-unicorn-tci.py scripts/build-unicorn.sh scripts/build-sap-native.sh $(find MapleSyrup/NativeSAP -name "*.go" -type f | sort); printf '%s\n' "$NATIVE_PLATFORM"; xcrun --sdk "$NATIVE_SDK_NAME" --show-sdk-version; } | shasum -a 256 | cut -d ' ' -f 1)
 if [[ -f build/Native/fingerprint && -f build/Native/libunicorn.a && -f build/Native/libWaffleSAP.a ]] && [[ $(cat build/Native/fingerprint) == "$FINGERPRINT" ]]; then
   exit 0
 fi
-NATIVE_SDK_NAME="$NATIVE_SDK_NAME" bash scripts/build-unicorn-tci.sh "$PWD/build/Native" "$NATIVE_PLATFORM"
+NATIVE_SDK_NAME="$NATIVE_SDK_NAME" bash scripts/build-unicorn.sh "$PWD/build/Native" "$NATIVE_PLATFORM"
 NATIVE_SDK_NAME="$NATIVE_SDK_NAME" bash scripts/build-sap-native.sh
 printf '%s\n' "$FINGERPRINT" > build/Native/fingerprint

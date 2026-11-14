@@ -60,6 +60,11 @@ if [ -e "$TARGET_APP/embedded.mobileprovision" ]; then
     rm -rf "$TARGET_APP/embedded.mobileprovision"
 fi
 
+echo "[*] Signing with entitlements..."
+# The interpreted StoreAgent guest needs a JIT translation buffer, so the
+# ad-hoc signature carries the allow-jit entitlement.
+codesign --force --sign - --entitlements "$WORKING_LOCATION/WaffleStore/WaffleStore.entitlements" "$TARGET_APP"
+
 echo "[*] Packaging..."
 mkdir Payload
 cp -r $APPLICATION_NAME.app Payload/$APPLICATION_NAME.app

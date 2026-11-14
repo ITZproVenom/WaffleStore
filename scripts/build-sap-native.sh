@@ -27,16 +27,19 @@ mkdir -p "$GOPATH" "$GOMODCACHE" "$GOCACHE"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 # Reuse the current SAP guest, loader and shims only, with an isolated C ABI.
+# Pinned to ipatool v2.8.1: it carries the Apple October 2026 store fixes,
+# the arm64 StoreAgent emulation and the account-bound kbsync path that the
+# store now requires for every download.
 # All downloaded source and generated modifications are retained for review.
-curl -fL --retry 3 https://github.com/majd/ipatool/archive/3411d57f451f5111ae115641c22f7ed17bbd5fbe.tar.gz -o "$WORK/ipatool.tar.gz"
+curl -fL --retry 3 https://github.com/majd/ipatool/archive/b352566155a667d8aaeabaa7ecec4966080f92ab.tar.gz -o "$WORK/ipatool.tar.gz"
 python3 - "$WORK/ipatool.tar.gz" <<'PY'
 import sys,hashlib
 with open(sys.argv[1], 'rb') as f: digest=hashlib.sha256(f.read()).hexdigest()
-if digest != '5c940788df3b619b07ead5e592b5a06beecd96ccdb7570f4fbd09a02b41785b7':
+if digest != 'fc13fe52232e96801f8994defd305d744a2f7c526c6dfb05d9b4c39cbe6867dc':
     raise SystemExit('ipatool source integrity mismatch')
 PY
 tar -xzf "$WORK/ipatool.tar.gz" -C "$WORK"
-SOURCE="$WORK/ipatool-3411d57f451f5111ae115641c22f7ed17bbd5fbe"
+SOURCE="$WORK/ipatool-b352566155a667d8aaeabaa7ecec4966080f92ab"
 mkdir -p "$SOURCE/wafflebridge"
 cp "$ROOT/MapleSyrup/NativeSAP/main.go" "$SOURCE/wafflebridge/main.go"
 mkdir -p "$SOURCE/wafflebridge/packageipa"

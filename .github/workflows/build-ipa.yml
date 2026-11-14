@@ -1,0 +1,45 @@
+name: build-ipa
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - fix/kbsync-modern-engine
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build arm64 IPA
+    runs-on: macos-15
+    timeout-minutes: 75
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: false
+
+      - name: Install CMake
+        run: brew install cmake
+
+      - name: Build the native store guest and the app
+        run: bash ipabuild.sh
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: WaffleStore-ipa
+          path: WaffleStore.ipa
+
+      - name: Publish the IPA
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: WaffleStore build ${{ github.run_number }}
+          prerelease: true
+          files: WaffleStore.ipa

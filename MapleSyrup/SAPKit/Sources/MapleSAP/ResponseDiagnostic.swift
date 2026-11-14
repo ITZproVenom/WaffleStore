@@ -27,6 +27,7 @@ public enum ResponseDiagnostic {
             case .sessionExpired: return "Apple-sign-in-required"
             case .http(let status): return "HTTP-\(status)"
             case .native(let stage): return "native-stage-\(stage)"
+            case .nativeDetail(let stage, _): return "native-stage-\(stage)"
             case .licenseRequired: return "license-required"
             case .paidPurchase: return "automatic-purchase-refused"
             case .unavailable: return "app-version-unavailable"

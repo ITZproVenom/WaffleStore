@@ -48,7 +48,7 @@ import pathlib,sys
 root=pathlib.Path(sys.argv[1])
 assets_dir=root/'internal/sap/assets'
 # A sandboxed app must keep every Apple asset inside its own container.
-for name in ['assets.go','storeagent.go']:
+for name in ['assets.go']:
     path=assets_dir/name
     source=path.read_text()
     old='root, err := os.UserCacheDir()\n\tif err != nil {'

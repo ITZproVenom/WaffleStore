@@ -14,6 +14,7 @@ nonisolated final class NativeKBSyncGenerator: KBSyncGenerator {
         try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
         var output: UnsafeMutablePointer<UInt8>?
         var length = 0
+        DiagnosticsLog.append("[!] store guest: requesting an account bound kbsync")
         let status = cache.path.withCString { path in
             identity.hardwareID.withUnsafeBytes { bytes in
                 WaffleSAPKBSync(UnsafeMutablePointer(mutating: path),
@@ -21,6 +22,7 @@ nonisolated final class NativeKBSyncGenerator: KBSyncGenerator {
                     identity.hardwareID.count, dsid, &output, &length)
             }
         }
+        DiagnosticsLog.append("[!] store guest: kbsync finished with status \(status)")
         defer { WaffleSAPFree(output, length) }
         guard status == 0 else { throw StoreError.nativeDetail(Int32(status), NativeKBSyncGenerator.lastError()) }
         guard let output = output, length > 0, length <= 16 << 20 else {

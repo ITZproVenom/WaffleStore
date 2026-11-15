@@ -31,7 +31,7 @@ public enum StoreError: Error, LocalizedError, Equatable {
         }
     }
     static func nativeReason(_ stage: Int32) -> String {
-        let reason: [Int32: String] = [2: "Apple asset loading", 8: "interpreted StoreAgent kbsync", 9: "operation window expired", 20: "package parameters", 21: "ZIP preparation", 22: "CDN range inspection", 31: "invalid ZIP or size/path limit", 32: "MD5 mismatch", 33: "IPA bundle/platform mismatch", 34: "metadata app/version mismatch", 35: "SINF data/path mismatch", 36: "ZIP checksum failure", 37: "sandbox storage access or space"]
+        let reason: [Int32: String] = [2: "Apple asset loading", 8: "interpreted StoreAgent kbsync", 9: "operation window expired", 90: "guest fault", 91: "executable memory not permitted", 20: "package parameters", 21: "ZIP preparation", 22: "CDN range inspection", 31: "invalid ZIP or size/path limit", 32: "MD5 mismatch", 33: "IPA bundle/platform mismatch", 34: "metadata app/version mismatch", 35: "SINF data/path mismatch", 36: "ZIP checksum failure", 37: "sandbox storage access or space"]
         return reason[stage] ?? "unknown"
     }
 }

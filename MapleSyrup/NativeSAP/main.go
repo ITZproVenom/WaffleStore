@@ -12,9 +12,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/majd/ipatool/v2/internal/sap/assets"
 	"github.com/majd/ipatool/v2/internal/sap/machine"
 	"github.com/majd/ipatool/v2/wafflebridge/packageipa"
+	"golang.org/x/sys/unix"
 	"sync"
 	"time"
 	"unsafe"
@@ -41,6 +43,32 @@ func recordError(err error) {
 		return
 	}
 	lastError.text = err.Error()
+}
+
+// A fault inside the interpreted guest must not take the app down. Turn it
+// into a reported status instead.
+func recoverGuest(status *C.int) {
+	if recovered := recover(); recovered != nil {
+		recordError(fmt.Errorf("native guest panic: %v", recovered))
+		*status = 90
+	}
+}
+
+// jitPermission reports whether this install may create executable pages.
+// The StoreAgent guest needs a JIT translation buffer. Without it the first
+// protection change fails inside the emulator, which used to abort the app
+// on the first sign in attempt.
+func jitPermission() error {
+	buffer, err := unix.Mmap(-1, 0, 4096, unix.PROT_READ|unix.PROT_WRITE,
+		unix.MAP_ANON|unix.MAP_PRIVATE)
+	if err != nil {
+		return fmt.Errorf("reserve a translation buffer: %w", err)
+	}
+	defer unix.Munmap(buffer)
+	if err := unix.Mprotect(buffer, unix.PROT_READ|unix.PROT_EXEC); err != nil {
+		return fmt.Errorf("this install cannot make memory executable: %w", err)
+	}
+	return nil
 }
 
 //export WaffleSAPLastError
@@ -71,7 +99,8 @@ var nextHandle uint64
 // 1 arguments; 2 assets; 3 emulator; 4 init; 5 exchange; 6 sign; 7 handle.
 //
 //export WaffleSAPOpen
-func WaffleSAPOpen(cache *C.char, hardware *C.uchar, length C.size_t, handle *C.uint64_t) C.int {
+func WaffleSAPOpen(cache *C.char, hardware *C.uchar, length C.size_t, handle *C.uint64_t) (result C.int) {
+	defer func() { recoverGuest(&result) }()
 	mutex.Lock()
 	defer mutex.Unlock()
 	if cache == nil || hardware == nil || length != 6 || handle == nil {
@@ -80,6 +109,10 @@ func WaffleSAPOpen(cache *C.char, hardware *C.uchar, length C.size_t, handle *C.
 	directory := C.GoString(cache)
 	if directory == "" {
 		return 1
+	}
+	if err := jitPermission(); err != nil {
+		recordError(err)
+		return 91
 	}
 	assets.CacheRoot = directory // Explicit app sandbox path; no home/system fallback.
 	ctx, cancel := context.WithTimeout(context.Background(), operationTimeout)
@@ -159,11 +192,16 @@ func WaffleSAPSign(handle C.uint64_t, input *C.uchar, length C.size_t, output **
 }
 
 //export WaffleSAPKBSync
-func WaffleSAPKBSync(cache *C.char, hardware *C.uchar, length C.size_t, dsid C.uint64_t, output **C.uchar, outputLength *C.size_t) C.int {
+func WaffleSAPKBSync(cache *C.char, hardware *C.uchar, length C.size_t, dsid C.uint64_t, output **C.uchar, outputLength *C.size_t) (result C.int) {
+	defer func() { recoverGuest(&result) }()
 	mutex.Lock()
 	defer mutex.Unlock()
 	if cache == nil || hardware == nil || length != 6 || dsid == 0 || output == nil || outputLength == nil {
 		return 1
+	}
+	if err := jitPermission(); err != nil {
+		recordError(err)
+		return 91
 	}
 	assets.CacheRoot = C.GoString(cache)
 	if assets.CacheRoot == "" {

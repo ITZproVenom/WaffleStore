@@ -34,7 +34,7 @@ private enum DeviceLogInfo {
 }
 
 struct LogView: View {
-    @State var log: String = DeviceLogInfo.startupLine
+    @State var log: String = DeviceLogInfo.startupLine + DiagnosticsLog.contents()
     
     var body: some View {
         GeometryReader { geometry in
